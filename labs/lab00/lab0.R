@@ -1,4 +1,4 @@
-cars <- read.csv("car-imports.csv")
+cars <- read.csv("/course/data/trade/car-imports.csv")
 head(cars)
 
 # fix data types
