@@ -13,11 +13,14 @@ knitr::opts_chunk$set(echo = TRUE)
 
 1. Curl to download weather data
 ```{bash}
+if [ ! -f akl.json ]; then
 curl -o akl.json 'https://archive-api.open-meteo.com/v1/era5?latitude=-36.85&longitude=174.77&start_date=1980-01-01&end_date=2022-06-30&daily=temperature_2m_max,temperature_2m_min&timezone=Pacific%2FAuckland'
+fi
 ```
 
 2. Read into R
 ```{r}
+library(jsonlite)
 jd <- read_json("akl.json", simplifyVector = TRUE)
 str(jd)
 ```
@@ -27,4 +30,26 @@ str(jd)
 3. Create dataframe from jd
 
 ```{r}
+d <- data.frame(day = as.Date(jd$daily$time), 
+                min = jd$daily$temperature_2m_min, 
+                max = jd$daily$temperature_2m_max)
+str(d)
 ```
+
+## Explore
+
+4. Data verification
+
+```{r}
+sum(is.na(d))
+summary(d)
+```
+
+## Model
+
+```{r}
+d$year <- format(d$day, "%Y")
+avg <- aggregate(year ~ min + max, data=d, FUN=mean)
+str(avg)
+```
+
