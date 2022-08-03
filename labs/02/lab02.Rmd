@@ -1,0 +1,30 @@
+---
+title: "lab02"
+author: "Chase Robertson"
+date: "2022-08-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Import
+
+1. Curl to download weather data
+```{bash}
+curl -o akl.json 'https://archive-api.open-meteo.com/v1/era5?latitude=-36.85&longitude=174.77&start_date=1980-01-01&end_date=2022-06-30&daily=temperature_2m_max,temperature_2m_min&timezone=Pacific%2FAuckland'
+```
+
+2. Read into R
+```{r}
+jd <- read_json("akl.json", simplifyVector = TRUE)
+str(jd)
+```
+
+## Clean
+
+3. Create dataframe from jd
+
+```{r}
+```
