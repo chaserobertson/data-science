@@ -47,9 +47,71 @@ summary(d)
 
 ## Model
 
+5. Aggregate to annual avg temp.
+
 ```{r}
-d$year <- format(d$day, "%Y")
-avg <- aggregate(year ~ min + max, data=d, FUN=mean)
+d$year <- as.integer(format(d$day, "%Y"))
+d$avg <- (d$min + d$max) / 2
+avg <- aggregate(avg ~ year, data=d, FUN=mean)
 str(avg)
 ```
 
+```{r}
+train <- subset(avg, year <= 2014)
+test <- subset(avg, year > 2014)
+
+mean_model <- mean(train$avg)
+linear_model <- lm(avg ~ year, data=train)
+
+mean_pred <- rep(mean_model, nrow(test))
+linear_pred <- predict(linear_model, test)
+
+rmse <- function(actual, predicted) {
+    sqrt(mean((actual - predicted) ^ 2))
+}
+
+cat("RMSE for mean:", fill=T)
+rmse(test$avg, mean_pred)
+cat("RMSE for linear model:", fill=T)
+rmse(test$avg, linear_pred)
+
+plot(avg ~ year, data=avg, type='l', 
+     xlab='Year', ylab='Annual Avg Temperature')
+abline(h=mean_model, col='blue')
+abline(linear_model, col='red')
+abline(v=test$year[1], lty=2)
+```
+
+The test data ends in June of 2022, so the average annual temperature of 2022 does not include winter or spring temperatures! This causes the annual average of 2022 to be significantly higher than other years. Ways to handle this situation include dropping 2022 from the test set, or imputing the missing 2022 months' temperatures with those of recent years or an average of previous years' winter months.
+
+```{r}
+tail(test)
+d$month <- as.integer(format(d$day, "%m"))
+
+train <- subset(d, year <= 2014)
+test <- subset(d, year > 2014)
+
+train_monthly_avgs <- aggregate(avg ~ month, data=train, FUN=mean)
+avg2022 <- c(subset(test, year >= 2022, select=avg),
+             subset(train_monthly_avgs, month >= 7, select=avg))
+avg2022
+```
+```{r}
+
+mean_model <- mean(train$avg)
+linear_model <- lm(avg ~ year, data=train)
+
+mean_pred <- rep(mean_model, nrow(test))
+linear_pred <- predict(linear_model, test)
+
+cat("RMSE for mean:", fill=T)
+rmse(test$avg, mean_pred)
+cat("RMSE for linear model:", fill=T)
+rmse(test$avg, linear_pred)
+
+plot(avg ~ year, data=avg, type='l', 
+     xlab='Year', ylab='Annual Avg Temperature')
+abline(h=mean_model, col='blue')
+abline(linear_model, col='red')
+abline(v=test$year[1], lty=2)
+```
