@@ -82,36 +82,78 @@ abline(linear_model, col='red')
 abline(v=test$year[1], lty=2)
 ```
 
-The test data ends in June of 2022, so the average annual temperature of 2022 does not include winter or spring temperatures! This causes the annual average of 2022 to be significantly higher than other years. Ways to handle this situation include dropping 2022 from the test set, or imputing the missing 2022 months' temperatures with those of recent years or an average of previous years' winter months.
+The test data ends in June of 2022, so the average annual temperature of 2022 does not include winter or spring temperatures! This causes the annual average of 2022 to be significantly higher than other years. Ways to handle this situation include dropping 2022 from the test set, changing the window of what defines an "annual" average, or imputing the missing 2022 months' temperatures with an average of previous years' winter months. I have chosen below to impute the latter half of 2022 with an average of the rest of test years' latter halves.
 
 ```{r}
-tail(test)
-d$month <- as.integer(format(d$day, "%m"))
-
-train <- subset(d, year <= 2014)
-test <- subset(d, year > 2014)
-
-train_monthly_avgs <- aggregate(avg ~ month, data=train, FUN=mean)
-avg2022 <- c(subset(test, year >= 2022, select=avg),
-             subset(train_monthly_avgs, month >= 7, select=avg))
-avg2022
+tail(test, 4)
+hist(test$avg)
 ```
-```{r}
 
+```{r}
+avg2 <- avg
+avg2[avg2$year==2022,]$avg <- mean(c(mean(subset(d, year == 2022)$avg), mean(subset(d, year > 2014 & month > 6)$avg)))
+test2 <- subset(avg2, year > 2014)
+tail(test2, 4)
+```
+
+```{r}
 mean_model <- mean(train$avg)
 linear_model <- lm(avg ~ year, data=train)
 
-mean_pred <- rep(mean_model, nrow(test))
-linear_pred <- predict(linear_model, test)
+mean_pred <- rep(mean_model, nrow(test2))
+linear_pred <- predict(linear_model, test2)
 
 cat("RMSE for mean:", fill=T)
-rmse(test$avg, mean_pred)
+rmse(test2$avg, mean_pred)
 cat("RMSE for linear model:", fill=T)
-rmse(test$avg, linear_pred)
+rmse(test2$avg, linear_pred)
 
-plot(avg ~ year, data=avg, type='l', 
+plot(avg ~ year, data=avg2, type='l', 
      xlab='Year', ylab='Annual Avg Temperature')
 abline(h=mean_model, col='blue')
 abline(linear_model, col='red')
-abline(v=test$year[1], lty=2)
+abline(v=test2$year[1], lty=2)
 ```
+
+The linear model predicts annual average temperatures better with the corrected test values, both in absolute terms and relative to the mean model.
+
+## Revisit
+
+6. Scrape more data from the web
+
+```{r}
+xmlpage <- read_html(url("https://stat.auckland.ac.nz/~su/769/demo/nzcities.html"))
+table <- xml_find_first(xmlpage, "//table")
+fieldnames <- xml_text(xml_find_all(table, ".//th"))
+fields <- xml_text(xml_find_all(table, ".//td"))
+fieldmat <- matrix(fields, byrow=TRUE, ncol=length(fieldnames))
+cities <- as.data.frame(fieldmat)
+names(cities) <- fieldnames
+cities$lat <- as.numeric(cities$lat)
+cities$lng <- as.numeric(cities$lng)
+cities$population <- as.integer(cities$population)
+cities$population_proper <- as.integer(cities$population_proper)
+str(cities)
+```
+
+Fetch max daily temp throughout 2021 for 5 most populous cities
+
+```{r}
+most_populous <- head(cities[rev(order(cities$population)),], 5)
+fetch_city <- function(city) {
+    df <- fromJSON(url(paste0('https://archive-api.open-meteo.com/v1/era5?latitude=', city["lat"], 
+                         '&longitude=', city["lng"], 
+                         '&start_date=', '2021-01-01', 
+                         '&end_date=', '2021-12-31', 
+                         '&daily=temperature_2m_max&timezone=Pacific%2FAuckland')))
+    df$daily$temperature_2m_max
+}
+max.temperature = apply(most_populous, 1, FUN=fetch_city)
+```
+
+```{r}
+matplot(max.temperature, type='l', lty=1, xaxt="n", xlab="Day")
+legend("bottomleft", legend=unique(most_populous$city), col = 1:5, lty=1)
+axis(1, at=seq(1, 365, by=60), labels=c("Jan", "Mar", "May", "Jul", "Sep", "Nov", "Jan"))
+```
+
