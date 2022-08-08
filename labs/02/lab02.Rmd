@@ -77,10 +77,8 @@ rmse <- function(actual, predicted) {
     sqrt(mean((actual - predicted) ^ 2))
 }
 
-cat("RMSE for mean:", fill=T)
-rmse(test$avg, mean_pred)
-cat("RMSE for linear model:", fill=T)
-rmse(test$avg, linear_pred)
+cat("RMSE for mean:", rmse(test$avg, mean_pred), fill=T)
+cat("RMSE for linear model:", rmse(test$avg, linear_pred), fill=T)
 ```
 
 ```{r}
@@ -123,10 +121,9 @@ linear_model <- lm(avg ~ year, data=train)
 mean_pred <- rep(mean_model, nrow(test2))
 linear_pred <- predict(linear_model, test2)
 
-cat("RMSE for mean:", fill=T)
-rmse(test2$avg, mean_pred)
-cat("RMSE for linear model:", fill=T)
-rmse(test2$avg, linear_pred)
+
+cat("RMSE for mean:", rmse(test2$avg, mean_pred), fill=T)
+cat("RMSE for linear model:", rmse(test2$avg, linear_pred), fill=T)
 ```
 
 ```{r}
