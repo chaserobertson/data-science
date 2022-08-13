@@ -1,0 +1,124 @@
+---
+title: "Stats 769 Lab 3"
+author: "Chase Robertson"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Data Set
+
+## Import
+
+1. How long does it take to decompress 2010 data?
+```{bash}
+time bzip2 -dc /course/data/nyctaxi/csv/yellow_tripdata_2010-01.csv.bz2 | wc -l
+```
+
+14863780
+
+real    1m16.586s
+user    1m14.860s
+sys     0m5.601s
+
+Assuming sequential processing, and that each of the data files would take roughly the same amount of time to decompress:
+
+- decompressing all 2010 data would take 15-20 minutes
+- decompressing all available CSV files (7 years worth) would take about 2 hours
+
+2. Time parallel decompression of all 2010 files.
+
+```{bash}
+time -p ls /course/data/nyctaxi/csv/yellow_tripdata_2010-??.csv.bz2 | parallel -j12 "bzip2 -dc {} | wc -l"
+```
+
+real 129.05
+user 904.60
+sys 65.43
+
+Decompression took a total computation time of 15 minutes, which is within the predicted range.
+
+3. Extract specific fields from compressed file
+
+```{bash}
+bzip2 -dc /course/data/nyctaxi/csv/yellow_tripdata_2010-01.csv.bz2 | head -n1
+
+bzip2 -dc /course/data/nyctaxi/csv/yellow_tripdata_2010-01.csv.bz2 | awk -F '"*,"*' '{OFS=","; print $12,$16,$18}' > UNI_HOME/data-science/labs/03/tips-2010-01.csv
+```
+
+With the reduced file being 330 MB, I estimate the memory required to load into R to be somewhere around 500 MB, so a 2 GB machine should be able to handle it.
+
+4. Read reduced file into R and check size in memory.
+
+```{r}
+tt <- readr::read_csv("tips-2010-01.csv", show_col_types = FALSE)
+object.size(tt)
+str(tt)
+```
+
+The actual object size is significantly lower than I expected, just a bit more than is required to store on disc. I thought the character vector would be longer than 3 characters, and thus require more than one 64-bit word to store each item.
+
+## Clean
+
+5. Ensure payment_method has the correct four possible values: cash, credit-card, disputed and no-charge.
+
+```{r}
+table(tt$payment_type)
+tt$payment_type[tt$payment_type == "CAS" | tt$payment_type == "Cas"] = "cash"
+tt$payment_type[tt$payment_type == "CRE" | tt$payment_type == "Cre"] = "credit-card"
+tt$payment_type[tt$payment_type == "Dis"] = "disputed"
+tt$payment_type[tt$payment_type == "No"] = "no-charge"
+table(tt$payment_type)
+```
+
+## Explore
+
+6. Sanity check
+
+```{r}
+summary(tt)
+hist(tt$tip_amount)
+hist(tt$total_amount)
+
+sum(tt$tip_amount < 0.009) / nrow(tt)
+sum(tt$total_amount > 200)
+
+max_totals <- head(tt[rev(order(tt$total_amount)),], 1000)
+plot(tip_amount ~ total_amount, data=max_totals)
+```
+
+7. Check relationship between tip amount and payment type
+
+```{r}
+tipped <- tt[tt$tip_amount > 0.009, "payment_type"]
+table(tipped)
+
+not_tipped <- tt[tt$tip_amount <= 0.009, "payment_type"]
+table(not_tipped)
+```
+
+## Model
+
+8. On credit card transactions only, 
+
+```{r}
+credit <- subset(tt, payment_type == "credit-card")
+credit$pre_tip <- credit$total_amount - credit$tip_amount
+head(credit)
+```
+
+```{r}
+test_ind <- sample(nrow(credit), nrow(credit)/10)
+train <- credit[-test_ind,]
+test <- credit[test_ind,]
+
+fit <- lm(tip_amount ~ pre_tip, data=train)
+pred <- predict(fit, test)
+plot(test, pch='.')
+point(pred, pch='.', col=2)
+```
+
+
+
