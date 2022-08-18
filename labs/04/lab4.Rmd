@@ -1,0 +1,60 @@
+---
+title: "Lab 4"
+author: "Chase Robertson"
+date: "16/08/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+1.
+
+```{bash}
+bzip2 -dc /course/data/nyctaxi/csv/yellow_tripdata_2010-01.csv.bz2 | awk -F, 'subst
+r($2, 0, 10) == "2010-01-08" {print $2","$6","$7}' >> /course/users/crob873/lab-4/pickup-2010-01-08.txt
+```
+
+2.
+
+```{r}
+pickup <- read.csv("/course/users/crob873/lab-4/pickup-2010-01-08.txt", header=FALSE)
+
+names(pickup) <- c("time", "lon", "lat")
+
+str(pickup)
+```
+
+Verify only one date in dataset.
+
+```{r}
+table(substr(pickup$time, 0, 10))
+```
+
+Plot locations in case of suspicious values.
+
+```{r}
+ plot(lon ~ lat, data=pickup)
+```
+
+There are suspicious values far out of the expected range.
+
+3. 
+
+```{r}
+pickup <- subset(pickup, 40.4 <= lat & lat <= 41.1 & -74.5 <= lon & lon <= -73.5)
+
+by_hour <- lapply(0:23, FUN = function(x) subset(pickup, as.integer(substr(time, 12, 13)) == x))
+
+plot(1:24, sapply(by_hour, nrow))
+```
+
+There is a clear positive linear relationship between the hour of day and the number of trips taken. As one would expect, very few trips occur in the early AM, and many occur in the late evening.
+
+4. Find nearest Foursquare location
+
+```{r}
+fs <- read.csv("/course/data/fsquare/dataset_TIST2015_POIs.txt")
+```
+
