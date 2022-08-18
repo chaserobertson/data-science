@@ -12,8 +12,9 @@ knitr::opts_chunk$set(echo = TRUE)
 1.
 
 ```{bash}
-bzip2 -dc /course/data/nyctaxi/csv/yellow_tripdata_2010-01.csv.bz2 | awk -F, 'subst
-r($2, 0, 10) == "2010-01-08" {print $2","$6","$7}' >> /course/users/crob873/lab-4/pickup-2010-01-08.txt
+if [ ! -e /course/users/crob873/lab-4 ]; then mkdir /course/users/crob873/lab-4; fi
+
+bzip2 -dc /course/data/nyctaxi/csv/yellow_tripdata_2010-01.csv.bz2 | awk -F, 'substr($2, 0, 10) == "2010-01-08" {print $2","$6","$7}' > /course/users/crob873/lab-4/pickup-2010-01-08.txt
 ```
 
 2.
@@ -35,7 +36,7 @@ table(substr(pickup$time, 0, 10))
 Plot locations in case of suspicious values.
 
 ```{r}
- plot(lon ~ lat, data=pickup)
+plot(lon ~ lat, data=pickup)
 ```
 
 There are suspicious values far out of the expected range.
@@ -55,6 +56,19 @@ There is a clear positive linear relationship between the hour of day and the nu
 4. Find nearest Foursquare location
 
 ```{r}
-fs <- read.csv("/course/data/fsquare/dataset_TIST2015_POIs.txt")
+fs <- readr::read_tsv("/course/data/fsquare/dataset_TIST2015_POIs.txt", col_names=c("id", "lat", "lon", "type", "country"), show_col_types=FALSE)
+
+str(fs)
 ```
+
+```{r}
+pickups <- by_hour[[9]]
+
+dist <- function(x, y) { sqrt((x["lon"] - y["lon"])^2 + (x["lat"] - y["lat"])^2) }
+```
+
+
+
+
+
 
