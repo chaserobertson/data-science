@@ -191,8 +191,8 @@ jackknife <- function(data, proportion=0.1, K=30, R=10, seed=123) {
     colMeans(pe)
 }
 
-l <- mclapply(X=list(seed=123), FUN=jackknife, data=train, proportion=0.1, K=K, R=R)
-kerr <- colMeans(matrix(unlist(l), ncol=20))
+l <- mclapply(X=list(seed=(1:K)*K), FUN=jackknife, data=train, proportion=0.1, K=K, R=R)
+kerr <- colMeans(matrix(unlist(l), ncol=K))
 plot(kerr, xlab='K', ylab='Error', type='o')
 ```
 
