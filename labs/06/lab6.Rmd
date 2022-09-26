@@ -174,7 +174,7 @@ The main difference between this jackknife method and repeated cross-validation 
 # option to parallelise by K or by repetitions
 # choose to parallelise repetitions to reduce variance of means and enable ncores > nK
 # parallelisation argument is random seed to ensure independence of results
-jackknife <- function(data, proportion=0.1, K=20, R=10, seed=123) {
+jackknife <- function(data, proportion=0.1, K=30, R=10, seed=123) {
     set.seed(seed)
     pe <- matrix(nrow=R, ncol=K)
     colnames(pe) <- 1:K
@@ -191,7 +191,7 @@ jackknife <- function(data, proportion=0.1, K=20, R=10, seed=123) {
     colMeans(pe)
 }
 
-l <- mclapply(X=list(seed=123), FUN=jackknife, data=train, proportion=0.1, K=1:K, R=R)
+l <- mclapply(X=list(seed=123), FUN=jackknife, data=train, proportion=0.1, K=K, R=R)
 kerr <- colMeans(matrix(unlist(l), ncol=20))
 plot(kerr, xlab='K', ylab='Error', type='o')
 ```
