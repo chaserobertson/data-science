@@ -159,7 +159,7 @@ errors(boost, boost.predict, train, test, type="response")
 
 In terms of performance, how does this Boosting predictor compare with the other predictors obtained in Tasks 2, 4, 5 and 6?
 
-- The boosting predictor is on par with the bagging predictor, and similarly much better than the pruned decision tree. It is not as accurate as any of the random forest models.
+- The boosting predictor is much better than the pruned decision tree, and on par with the bagging predictor. It is not as accurate as any of the random forest models.
 
 # Clustering
 8. Without using the `digit` variable, run the K-means algorithm to partition the training data into K = 2,…,5 clusters, respectively.
@@ -205,4 +205,4 @@ h_ari
 Summary
 10. Write a summary of the entire report.
 
-- In this report, 16x16 grayscale images of handwritten digits were used to classify or cluster into their appropriate number. Various tree-based ensemble methods were attempted, along with k-means and hierarchical clustering. Random Forest was found to perform best, followed by Boosting, Bagging, then a single pruned decision tree. This ranking is to be expected, with the random subsample of features utilised in each Random Forest tree providing a key improvement in performance. Clustering methods were not able to group digits together well, with a minor exception being complete linkage of 4-5 clusters.
+- In this report, 16x16 grayscale images of handwritten digits were used to classify or cluster into their appropriate number. Various tree-based ensemble methods were attempted, along with k-means and hierarchical clustering. Random Forest was found to perform best, followed by Boosting, Bagging, then a single pruned decision tree. This ranking is to be expected, with the random subsample of features utilised in each Random Forest tree providing a key improvement in performance. The clustering methods were not able to group digits together well, with the best result being complete linkage of 4-5 clusters.
