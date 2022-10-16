@@ -38,19 +38,19 @@ table(c(train$digit, test$digit))
 
 ```{r subset-train}
 predictors <- subset(train, select=c(digit, p167, p105))
-predictors
+str(predictors)
 ```
 
-Consider fitting support vector machines using the linear kernel, for cost=0.0001,0.001,0.01,0.1, respectively.
+Consider fitting support vector machines using the linear kernel, for cost=0.0001, 0.001, 0.01, 0.1, respectively.
 
 ```{r attach-subset}
 attach(predictors)
 ```
 
-```{r costs-plot, cache=T, fig.height=4, fig.width=4}
+```{r costs-plot, cache=T, fig.height=9, fig.width=9}
 costs <- 10^(-4:-1)
 form <- digit ~ p105 + p167
-r <- lapply(costs, function(x) svm(form, data=predictors, kernel='linear', cost=x))
+r <- lapply(costs, function(x) svm(form, data=predictors, kernel='linear', scale=F, cost=x))
 
 col <- as.numeric(digit)+2
 par(mfrow=c(2,2))
@@ -86,30 +86,25 @@ err <- function(model, gamma=F, subset=T) {
 
 Should the training and test errors be similar to each other in these cases? Explain why or why not.
 
-- Training and test errors should indeed be very similar for each of these linear models. Linear models are not flexible enough to make overfitting very likely.
+- Training and test errors should indeed be very similar for each of these linear models. Linear models are not flexible enough to make lower training error due to overfitting very likely.
 
 Find the best value for cost, based on the test errors.
 
 ```{r best-cost}
 (best_cost <- errs[[which.min(errs[,3]),1]])
-# CV not necessary
-#set.seed(1234)
-#rt <- tune(svm, form, data=predictors, validation.x=test[,2:3], validation.y=test[,1], kernel='linear', ranges=list(cost=10^(-4:4)))
-#c(rt$best.parameters, rt$best.performance)
 ```
 
 4. Consider using radial kernels for support vector machines, with the cost-value fixed at the optimal one found in Task 3.
 
-Consider fitting support vector machines, for gamma=0.0001,0.1,10,1000, respectively.
+Consider fitting support vector machines, for gamma=0.0001, 0.1, 10, 1000, respectively.
 
 ```{r gamma-fit, cache=T}
 gamma <- 10^c(-4, -1, 1, 3)
-r <- lapply(gamma, function(x) svm(form, data=predictors, kernel='radial', cost=best_cost, gamma=x, probability=T))
+r <- lapply(gamma, function(x) svm(form, data=predictors, kernel='radial', scale=F, 
+                                   cost=best_cost, gamma=x, probability=T))
 ```
 
 ```{r gamma-pred, cache=T}
-# plot the decision boundary in our own scatter plot
-
 x = seq(min(p167), max(p167), len=length(p167))
 y = seq(min(p105), max(p105), len=length(p167))
 g <- expand.grid(x, y)
@@ -118,31 +113,33 @@ data <- data.frame(p167=g[,1], p105=g[,2])
 preds <- lapply(r, function(x) predict(x, data, probability=T))
 ```
 
-```{r gamma-plot, cache=T, fig.width=4, fig.height=4}
-plot(p167, p105, col=col, main="Radial")  # scatter plot
+```{r gamma-plot, cache=T, fig.width=9, fig.height=9}
+plot(p167, p105, col=col, main="Radial kernel with varying gamma")
 for (i in seq_along(gamma)) {
     fit <- r[[i]] 
     probs <- attr(preds[[i]], "probabilities")[,1]
     z <- matrix(probs, nrow=length(p167))
-    contour(x, y, z, levels=0.5, lwd=2, labels=paste0("g=", fit$gamma), 
+    contour(x, y, z, levels=0.5, lwd=2, labels=paste0('gamma=', fit$gamma), 
             drawlabels=T, method="flattest", labcex=1.5, add=TRUE)
 }
-# add decision boundarys
 ```
 
 What is the effect of gamma here, in terms of the decision boundary and the number of support vectors?
 
-- An increase of gamma leads to a more flexible nonlinear boundary, with very small gamma fitting a straight line, and very high gamma fitting a wiggling line which fits the noisy training data very tightly.
+- An increase of gamma leads to a more flexible nonlinear boundary, with very small gamma fitting a straight line, and very high gamma fitting a wiggling line which sticks to the noisy training data very tightly.
 
 Compute the training and test errors for each of the support vector machines built. What is the optimal value for gamma here?
 
 ```{r gamma-errs, cache=T}
 (errs <- t(sapply(r, err, gamma=T)))
+detach(predictors)
 ```
+
+- The optimal value for gamma seems to be 10 here, as it results in least test error.
 
 Do you think using radial kernels helps here, as compared with the linear kernel?
 
-- Given that the lowest test error was achieved with gamma=10, I think that using a radial kernel does help here, as compared to the linear kernel. It is crucial to tune gamma properly, though, as the other attempted values do not lead to superior performance over the linear kernel models.
+- Using a radial kernel does seem to help here, as compared to the linear kernel. It is crucial to tune the hyperparameters properly, though, as the other attempted gamma values did not lead to superior performance over the linear kernel models.
 
 # Using All Predictors
 5. Now consider using all 256 predictors in support vector machines, using radial kernels.
@@ -152,8 +149,7 @@ Fit the support vector machine, using the optimal values for cost and gamma foun
 Compute both the training and test errors for this model.
 
 ```{r all-pred, cache=T}
-detach(predictors)
-r <- svm(digit ~ ., data=train, kernel='radial', cost=0.1, gamma=10)
+r <- svm(digit ~ ., data=train, kernel='radial', scale=F, cost=0.1, gamma=10)
 
 t(err(r, gamma=T, subset=F))
 ```
@@ -162,10 +158,8 @@ t(err(r, gamma=T, subset=F))
 
 ```{r all-pred-cv, cache=T}
 set.seed(1234)
-rt <- tune(svm, digit ~ ., data=train, kernel='radial', scale=F, 
-           ranges=list(cost=10^(-3:3), gamma=10^(-3:3)))
-summary(rt)
-c(rt$best.parameters, rt$best.performance)
+(rt <- tune(svm, digit ~ ., data=train, kernel='radial', scale=F, 
+           ranges=list(cost=10^(-3:3), gamma=10^(-3:3))))
 ```
 
 Compute both the training and test errors of the best model found.
@@ -183,14 +177,20 @@ Choose manually a set of values for eps, cost and gamma so that the support vect
 attach(Boston)
 ```
 
-```{r boston-svm, cache=T, fig.width=4, fig.height=4}
-br <- svm(medv ~ lstat, data=Boston, kernel='radial', scale=F, 
-          eps=0.05, cost=0.1, gamma=0.1)
+```{r boston-svm, cache=T, fig.width=9, fig.height=18}
+params <- expand.grid(eps=c(0.1, 0.01), cost=c(1, 10, 100), gamma=c(0.1, 0.01, 0.001))
+x <- seq(min(lstat), max(lstat), 0.1)
 
-plot(lstat, medv, main='Radial Regression')
-lines(lstat, predict(br, Boston), lwd=2)
+par(mfrow=c(6,3))
+for (i in seq(nrow(params))) {
+    br <- svm(medv ~ lstat, data=Boston, kernel='radial', scale=F, 
+          eps=params[i,1], cost=params[i,2], gamma=params[i,3])
+    plot(lstat, medv, col=col[1], main=paste(names(params), params[i,], sep='=', collapse=", "))
+    lines(x, predict(br, data.frame(lstat=x)), lwd=2)
+}
 ```
 
+- Epsilon=0.1, Cost=100, gamma=0.1 looks to be a good fit. Perhaps a bit overfit, but captures the steep relationship at very low values of lstat.
 
 8. Consider using all predictors (without scaling) for the response medv.
 
@@ -199,29 +199,31 @@ Fix a reasonably value for eps (or you may also include it in the following cros
 Find the best values for cost and gamma, using 10-fold cross-validation (just one run).
 
 ```{r boston-cv, cache=T, fig.width=4, fig.height=4}
-br <- tune(svm, medv ~ ., data=Boston, kernel='radial', scale=F, 
-          ranges=list(eps=c(0.1, 0.05), cost=c(0.1, 1), gamma=c(0.1, 1)))
-
-summary(br)
+(br_t <- tune(svm, medv ~ ., data=Boston, kernel='radial', scale=F, 
+            eps=0.1, ranges=list(cost=10^(-4:3), gamma=10^(-4:3))))
 ```
 
 Provide a rough estimate of the proportion of variation reduction by the best model found.
 
+```{r}
+1 - min(br_t$performance[,'error']) / var(medv)
+```
+
+
 9. Re-do Task 8, with all predictors standardised.
 
 ```{r boston-scaled, cache=T, fig.width=4, fig.height=4}
-br <- tune(svm, medv ~ ., data=Boston, kernel='radial', scale=TRUE, 
-          ranges=list(eps=c(0.1, 0.05), cost=c(0.1, 1), gamma=c(0.1, 1)))
-
-summary(br)
+(br_s <- tune(svm, medv ~ ., data=Boston, kernel='radial', scale=TRUE, 
+            eps=0.1, ranges=list(cost=10^(-4:3), gamma=10^(-4:3))))
+detach(Boston)
 ```
 
 Does the scaling help here?
 
-- 
+- Scaling does help here, as it effectively equalises the influence of each variable on the error calculations. Without scaling, those variables with wider ranges would necessarily have more impact on the fitted regression. With scaling, the best set of hyperparameters changes along with an improvement in performance.
 
 # Summary
 10. Write a summary of the entire report.
 
-- 
+- In this report, Support Vector Machines are applied to both a classification and regression task. Linear and radial kernels are attempted, with different hyperparameter combinations and analysis of their impact. The power and necessity of data scaling and proper hyperparameter tuning in this context is emphasised, with wide performance differences between models.
 
