@@ -1,0 +1,144 @@
+---
+title: "Stats 769 Lab 10"
+author: "Chase Robertson"
+date: "2022-10-18"
+output: html_document
+---
+
+```{r}
+library(keras)
+```
+
+# Introduction
+1. In your own words, describe briefly the data and the data mining problems that are studied in this lab.
+
+- In this lab, 16x16 grayscale images of handwritten digits are used to classify into their appropriate number. Classification of this dataset is known to be difficult, with a 2.5% error rate being considered excellent performance. Neural network classification is applied to observations labeled as digits 2 and 3, using first the 2 most informative predictors, then all available predictors. All predictors are then used to classify all 10 digit classes.
+
+# An Image
+2. Produce a 10x10 image that looks similar to the following, where each handwritten digit is randomly chosen from the subset with its corresponding numeral value in the training set. (You may reverse black and white in the image, if you like.)
+
+```{r data-import, cache=T}
+set.seed(1234)
+
+train = read.csv("ziptrain.csv")
+test = read.csv("ziptest.csv")
+
+train2 <- subset(train, digit %in% c(2,3))
+test2 <- subset(test, digit %in% c(2,3))
+
+(t1 <- table(c(train$digit, test$digit)))
+(t2 <- table(c(train2$digit, test2$digit)))
+```
+
+```{r digit-plot, cache=T}
+digit_sample <- sapply(0:9, function(x) sample(which(train$digit==x), 10))
+digit_mat <- (as.matrix(train[digit_sample,-1]) + 1) / 2 # shift -1,1 range to 0,1
+digit_mat <- array_reshape(digit_mat, c(nrow(digit_mat), 16, 16))
+
+par(mar=rep(0,4), mfrow=c(10,10))
+for (i in 1:100) plot(as.raster(digit_mat[i,,]))
+```
+
+# Using Two Predictors
+3. In Tasks 2-6 will continue our study of using two predictors, p167 and p105, for predicting digit=2 or 3.
+
+```{r two-pred, cache=T}
+train2_x <- as.matrix(subset(train2, select=c(p167, p105)))
+train2_y <- as.matrix(subset(train2, select=digit) - 2) # class 0 = digit 2, class 1 = digit 3
+
+test2_x <- as.matrix(subset(test2, select=c(p167, p105)))
+test2_y <- as.matrix(subset(test2, select=digit) - 2) # class 0 = digit 2, class 1 = digit 3
+```
+
+Fit 4 neural networks by minimising (sufficiently) the cross-entropy objective function. Each network has one layer of hidden units, with the number of units being 1, 2, 3, 4, respectively.
+
+```{r two-pred-nn, cache=T}
+two_pred_nns <- list()
+histories <- list()
+for (u in 1:4) {
+    nn <- keras_model_sequential() |>
+        layer_dense(units=u, activation="relu", input_shape=c(2)) |>
+        layer_dense(units=1, activation="sigmoid") |>
+        compile(loss="binary_crossentropy", 
+                optimizer=optimizer_rmsprop(),
+                metrics=c("accuracy"))
+
+    histories[[u]] <- fit(nn, train2_x, train2_y, 
+                          epochs=500, batch_size=32, verbose=0,
+                   callbacks = c(callback_early_stopping(monitor="loss", patience=5)))
+    two_pred_nns[[u]] <- nn
+    print(paste("Model", u, "converged"))
+}
+```
+
+```{r plot-two-pred-nn, cache=T, fig.width=8, fig.height=8}
+for (u in 1:4) plot(histories[[u]], method="base", main=paste0(u, " hidden units"))
+```
+
+Compute their training and test errors (for the train and test sets).
+
+```{r, cache=T}
+errors <- function(model, x, y, x2, y2) {
+    errs <- c(evaluate(model, x, y, verbose=0)[2],
+              evaluate(model, x2, y2, verbose=0)[2])
+    names(errs) <- c("train", "test")
+    errs
+}
+
+two_pred_errs <- sapply(1:4, function(x) errors(two_pred_nns[[x]], train2_x, train2_y, test2_x, test2_y))
+colnames(two_pred_errs) <- paste(1:4, "hidden units")
+t(two_pred_errs)
+```
+
+4. For each of the 4 fitted neural networks obtained in Task 3, plot its decision boundary inside a scatter plot of the training data.
+
+```{r plot-two-pred-db, cache=T, fig.width=9, fig.height=9}
+x = seq(min(train2$p167), max(train2$p167), len=100)
+y = seq(min(train2$p105), max(train2$p105), len=100)
+g <- as.matrix(expand.grid(x, y))
+
+plot(train2_x, col=train2_y+3, main="One hidden layer with varying units")
+for (i in 1:4) {
+    fit <- two_pred_nns[[i]] 
+    z <- matrix(predict(fit, g, verbose=0), nrow=100)
+    contour(x, y, z, levels=0.5, lwd=2, labels=paste0('n_units=', i), 
+            drawlabels=T, labcex=1.5, add=TRUE)
+}
+```
+
+5. Fit a neural network with two hidden layers, with the numbers of units being (4,3), by minimising (sufficiently) the cross-entropy objective function.
+
+```{r two-pred-multilayer}
+two_pred_multi <- keras_model_sequential() |>
+    layer_dense(units=4, activation="relu", input_shape=c(2)) |>
+    layer_dense(units=3, activation="relu") |>
+    layer_dense(units=1, activation="sigmoid") |>
+    compile(loss="binary_crossentropy", 
+            optimizer=optimizer_rmsprop(),
+            metrics=c("accuracy"))
+
+history <- fit(two_pred_multi, x=train2_x, y=train2_y, epochs=50, batch_size=32, verbose=0,
+               callbacks = c(callback_early_stopping(monitor="loss", patience=5)))
+plot(history)
+```
+
+
+Compute its training and test errors.
+
+6. Re-do Task 5, by setting a validation fraction of 0.3 (data needs to be shuffled first). Monitor the performance for a sufficiently long time. Find an optimal value for epoch and refit the neural network. (It is also possible to use callbacks, if you know how to use them.)
+
+Compute the training and test errors of the final neural network.
+
+# Using All Predictors
+7. Re-do Task 6, but with all 256 predictors used.
+
+8. Consider using convolutional neural networks for predicting digit=2 or 3, with all 256 predictors used.
+
+Compute the training and test errors of a well-trained neural network.
+
+9. Re-do Task 8, but for the 10-class classification problem (digit=0,1,...,9).
+
+# Summary
+10. Write a summary of the entire report.
+
+- 
