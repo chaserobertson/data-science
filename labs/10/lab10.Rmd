@@ -5,7 +5,7 @@ date: "2022-10-18"
 output: html_document
 ---
 
-```{r}
+```{r libraries}
 library(keras)
 ```
 
@@ -52,32 +52,35 @@ test2_y <- as.matrix(subset(test2, select=digit) - 2) # class 0 = digit 2, class
 
 Fit 4 neural networks by minimising (sufficiently) the cross-entropy objective function. Each network has one layer of hidden units, with the number of units being 1, 2, 3, 4, respectively.
 
-```{r two-pred-nn, cache=T}
-two_pred_nns <- list()
-histories <- list()
-for (u in 1:4) {
-    nn <- keras_model_sequential() |>
-        layer_dense(units=u, activation="relu", input_shape=c(2)) |>
-        layer_dense(units=1, activation="sigmoid") |>
+```{r def-nn-fit}
+fit_model <- function(x, y, shape, epochs=500, val=0) {
+    model <- keras_model_sequential() |>
+        layer_dense(units=shape[1], activation="relu", input_shape=dim(x)[-1])
+    
+    for (i in shape[-1]) model |> layer_dense(i, activation="relu")
+    
+    model |> layer_dense(units=dim(y)[-1], activation="sigmoid") |>
         compile(loss="binary_crossentropy", 
                 optimizer=optimizer_rmsprop(),
                 metrics=c("accuracy"))
 
-    histories[[u]] <- fit(nn, train2_x, train2_y, 
-                          epochs=500, batch_size=32, verbose=0,
+    history <- fit(model, x, y, batch_size=32, verbose=0, epochs=epochs, validation_split=val,
                    callbacks = c(callback_early_stopping(monitor="loss", patience=5)))
-    two_pred_nns[[u]] <- nn
-    print(paste("Model", u, "converged"))
+    list(model=model, history=history)
 }
 ```
 
-```{r plot-two-pred-nn, cache=T, fig.width=8, fig.height=8}
-for (u in 1:4) plot(histories[[u]], method="base", main=paste0(u, " hidden units"))
+```{r fit-p2nn}
+p2nns <- lapply(1:4, function(x) fit_model(train2_x, train2_y, shape=x))
+```
+
+```{r plot-p2nn}
+for (u in 1:4) plot(p2nns[[u]]$history, method="base", main=paste0(u, " hidden units"))
 ```
 
 Compute their training and test errors (for the train and test sets).
 
-```{r, cache=T}
+```{r errs-p2nn}
 errors <- function(model, x, y, x2, y2) {
     errs <- c(evaluate(model, x, y, verbose=0)[2],
               evaluate(model, x2, y2, verbose=0)[2])
@@ -85,60 +88,153 @@ errors <- function(model, x, y, x2, y2) {
     errs
 }
 
-two_pred_errs <- sapply(1:4, function(x) errors(two_pred_nns[[x]], train2_x, train2_y, test2_x, test2_y))
-colnames(two_pred_errs) <- paste(1:4, "hidden units")
-t(two_pred_errs)
+p2errs <- sapply(1:4, function(x) errors(p2nns[[x]]$model, train2_x, train2_y, test2_x, test2_y))
+colnames(p2errs) <- paste(1:4, "hidden units")
+t(p2errs)
 ```
 
 4. For each of the 4 fitted neural networks obtained in Task 3, plot its decision boundary inside a scatter plot of the training data.
 
-```{r plot-two-pred-db, cache=T, fig.width=9, fig.height=9}
-x = seq(min(train2$p167), max(train2$p167), len=100)
-y = seq(min(train2$p105), max(train2$p105), len=100)
-g <- as.matrix(expand.grid(x, y))
+```{r plot-p2nn-db, cache=T, fig.width=9, fig.height=9, eval=F}
+granularity <- 1000
+xrange = seq(min(train2$p167), max(train2$p167), len=granularity)
+yrange = seq(min(train2$p105), max(train2$p105), len=granularity)
+grd <- as.matrix(expand.grid(xrange, yrange))
 
 plot(train2_x, col=train2_y+3, main="One hidden layer with varying units")
 for (i in 1:4) {
-    fit <- two_pred_nns[[i]] 
-    z <- matrix(predict(fit, g, verbose=0), nrow=100)
-    contour(x, y, z, levels=0.5, lwd=2, labels=paste0('n_units=', i), 
+    z <- matrix(predict(p2nns[[i]]$model, grd, verbose=0), nrow=granularity)
+    contour(xrange, yrange, z, levels=0.5, lwd=2, labels=paste0('n_units=', i), 
             drawlabels=T, labcex=1.5, add=TRUE)
 }
 ```
 
 5. Fit a neural network with two hidden layers, with the numbers of units being (4,3), by minimising (sufficiently) the cross-entropy objective function.
 
-```{r two-pred-multilayer}
-two_pred_multi <- keras_model_sequential() |>
-    layer_dense(units=4, activation="relu", input_shape=c(2)) |>
-    layer_dense(units=3, activation="relu") |>
-    layer_dense(units=1, activation="sigmoid") |>
-    compile(loss="binary_crossentropy", 
-            optimizer=optimizer_rmsprop(),
-            metrics=c("accuracy"))
-
-history <- fit(two_pred_multi, x=train2_x, y=train2_y, epochs=50, batch_size=32, verbose=0,
-               callbacks = c(callback_early_stopping(monitor="loss", patience=5)))
-plot(history)
+```{r fit-p2mlp}
+p2mlp <- fit_model(train2_x, train2_y, shape=c(4, 3))
+    
+plot(p2mlp$history)
 ```
-
 
 Compute its training and test errors.
 
+```{r errs-p2mlp}
+errors(p2mlp$model, train2_x, train2_y, test2_x, test2_y)
+```
+
 6. Re-do Task 5, by setting a validation fraction of 0.3 (data needs to be shuffled first). Monitor the performance for a sufficiently long time. Find an optimal value for epoch and refit the neural network. (It is also possible to use callbacks, if you know how to use them.)
 
+```{r fit-p2mlp-vld}
+set.seed(1234)
+shuffle <- sample(nrow(train2_x), size=nrow(train2_x))
+p2mlp_val <- fit_model(train2_x[shuffle,], matrix(train2_y[shuffle,]), 
+                       shape=c(4, 3), val=0.3)
+
+epochs <- length(p2mlp_val$history$metrics$loss)
+cat("Epochs requested:", 500, fill=T)
+cat("Epochs needed:", epochs, fill=T)
+```
+
 Compute the training and test errors of the final neural network.
+
+```{r errs-p2mlp-vld}
+p2mlp_final <- fit_model(train2_x, train2_y, shape=c(4, 3), epochs=epochs)
+errors(p2mlp_final$model, train2_x, train2_y, test2_x, test2_y)
+```
 
 # Using All Predictors
 7. Re-do Task 6, but with all 256 predictors used.
 
+```{r all-pred-mlp}
+train_x23 <- as.matrix(subset(train2, select=-digit))
+train_y23 <- as.matrix(subset(train2, select=digit) - 2) # class 0 = digit 2, class 1 = digit 3
+
+test_x23 <- as.matrix(subset(test2, select=-digit))
+test_y23 <- as.matrix(subset(test2, select=digit) - 2) # class 0 = digit 2, class 1 = digit 3
+
+set.seed(1234)
+shuffle <- sample(nrow(train_x23), size=nrow(train_x23))
+mlp23 <- fit_model(train_x23[shuffle,], matrix(train_y23[shuffle,]), 
+                       shape=c(4, 3), val=0.3)
+
+epochs <- length(mlp23$history$metrics$loss)
+cat("Epochs needed:", epochs, fill=T)
+
+mlp23 <- fit_model(train_x23, train_y23, shape=c(4, 3), epochs=epochs)
+errors(mlp23$model, train_x23, train_y23, test_x23, test_y23)
+```
+
 8. Consider using convolutional neural networks for predicting digit=2 or 3, with all 256 predictors used.
+
+```{r convnet-build}
+train_x23conv <- array_reshape(train_x23, c(nrow(train_x23), 16, 16))
+test_x23conv <- array_reshape(test_x23, c(nrow(test_x23), 16, 16))
+
+fit_convnet <- function(x, y, epochs=500, val=0, early_stop=T) {
+    if (ncol(y) == 1) {
+        loss <- "binary_crossentropy"
+        activation <- "sigmoid"
+    }
+    else {
+        loss <- "categorical_crossentropy"
+        activation <- "softmax"
+    }
+    if (early_stop) callback <- callback_early_stopping(monitor="loss", patience=5)
+    else callback <- NULL
+    
+    convnet <- keras_model_sequential() |>
+        layer_conv_2d(16, c(3,3), padding="same", activation="relu", input_shape=c(16,16,1)) |>
+        layer_max_pooling_2d(pool_size=c(2,2)) |>
+        layer_conv_2d(32, c(3,3), padding="same", activation="relu") |>
+        layer_max_pooling_2d(pool_size=c(2,2)) |>
+        layer_conv_2d(64, c(3,3), padding="same", activation="relu") |>
+        layer_max_pooling_2d(pool_size=c(2,2)) |>
+        layer_conv_2d(128, c(3,3), padding="same", activation="relu") |>
+        layer_max_pooling_2d(pool_size=c(2,2)) |>
+        layer_flatten() |>
+        layer_dropout(rate=0.5) |>
+        layer_dense(256, activation="relu") |>
+        layer_dense(ncol(y), activation=activation) |>
+        compile(loss=loss,
+                optimizer=optimizer_rmsprop(),
+                metrics=c("accuracy"))
+    history <- fit(convnet, x, y, batch_size=32, verbose=0, 
+                   validation_split=val, epochs=epochs, callbacks = callback)
+    list(model=convnet, history=history)
+}
+```
+
+```{r convnet-train}
+convnet <- fit_convnet(train_x23conv, train_y23, val=0.3)
+(epochs <- length(convnet$history$metrics$loss))
+```
 
 Compute the training and test errors of a well-trained neural network.
 
+```{r convnet-errs}
+convnet <- fit_convnet(train_x23conv, train_y23, epochs=epochs, early_stop=F)
+errors(convnet$model, train_x23conv, train_y23, test_x23conv, test_y23)
+```
+
 9. Re-do Task 8, but for the 10-class classification problem (digit=0,1,...,9).
+
+```{r full-convnet}
+train_x <- as.matrix(subset(train, select=-digit))
+train_xconv <- array_reshape(train_x, c(nrow(train_x), 16, 16))
+train_y <- to_categorical(subset(train, select=digit))
+
+test_x <- as.matrix(subset(test, select=-digit))
+test_xconv <- array_reshape(test_x, c(nrow(test_x), 16, 16))
+test_y <- to_categorical(subset(test, select=digit))
+
+mlp <- fit_convnet(train_xconv, train_y, val=0.3)
+(epochs <- length(mlp$history$metrics$loss))
+mlp <- fit_convnet(train_xconv, train_y, epochs=epochs, early_stop=F)
+errors(mlp$model, train_xconv, train_y, test_xconv, test_y)
+```
 
 # Summary
 10. Write a summary of the entire report.
 
-- 
+- In this report, the keras package is used to explore the application of neural networks to the zipcode handwritten digits dataset. The data is first visualised with a random sample of each digit's training observations. Using only the two predictors known to be most informative, networks with varying numbers of hidden nodes are fit, and results plotted. Then, a two-hidden-layer network is fit, both with validation holdout and without. The same network is then trained with all 256 predictors, and compared with a convolutional network trained in the same way. Finally, a convolutional network is trained on all 10 digits and performance measured.
